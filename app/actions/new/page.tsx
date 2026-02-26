@@ -1,15 +1,31 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+
+type UnitRow = {
+  id: string;
+  name: string;
+  side: string;
+  unitState?: { cppCurrent?: number | null } | null;
+};
+
+const clampColumnShifts = (value: number) => Math.max(-3, Math.min(3, Math.trunc(value)));
 
 export default function NewActionPage() {
   const params = useSearchParams();
   const router = useRouter();
   const type = params.get('type') || 'close_combat';
   const [game, setGame] = useState<any>(null);
-  const [units, setUnits] = useState<any[]>([]);
-  const [form, setForm] = useState<any>({ attackerUnitIds: [], defenderUnitIds: [], columnShifts: 0, notes: '' });
+  const [units, setUnits] = useState<UnitRow[]>([]);
+  const [error, setError] = useState('');
+  const [form, setForm] = useState<any>({
+    title: 'Close Combat',
+    attackerUnitIds: [],
+    defenderUnitIds: [],
+    columnShifts: 0,
+    notes: ''
+  });
 
   useEffect(() => {
     (async () => {
@@ -19,23 +35,64 @@ export default function NewActionPage() {
     })();
   }, []);
 
-  if (!game) return <div className="card">No game yet.</div>;
-
-  const setMulti = (key: 'attackerUnitIds' | 'defenderUnitIds', value: string) => {
-    setForm({ ...form, [key]: value.split(',').map((v) => v.trim()).filter(Boolean) });
+  const onSelectUnits = (key: 'attackerUnitIds' | 'defenderUnitIds', selected: HTMLSelectElement) => {
+    const selectedIds = Array.from(selected.selectedOptions).map((option) => option.value);
+    setForm((prev: any) => ({ ...prev, [key]: selectedIds }));
   };
+
+  const unitOptions = useMemo(
+    () =>
+      units.map((unit) => ({
+        id: unit.id,
+        label: `${unit.name} (${unit.side}) — CPP ${unit.unitState?.cppCurrent ?? 0}`
+      })),
+    [units]
+  );
+
+  if (!game) return <div className="card">No game yet.</div>;
 
   return (
     <div className="card">
       <h2>New Action ({type})</h2>
       <div className="grid">
-        <input placeholder="Title" value={form.title ?? 'Close Combat'} onChange={(e) => setForm({ ...form, title: e.target.value })} />
-        <input placeholder="Attacker unit IDs (comma-separated)" onChange={(e) => setMulti('attackerUnitIds', e.target.value)} />
-        <input placeholder="Defender unit IDs (comma-separated)" onChange={(e) => setMulti('defenderUnitIds', e.target.value)} />
-        <input type="number" placeholder="Column shifts" value={form.columnShifts} onChange={(e) => setForm({ ...form, columnShifts: Number(e.target.value) })} />
+        <input placeholder="Title" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
+
+        <div>
+          <label>Attacker units</label>
+          <select multiple value={form.attackerUnitIds} onChange={(e) => onSelectUnits('attackerUnitIds', e.target)}>
+            {unitOptions.map((unit) => (
+              <option key={unit.id} value={unit.id}>
+                {unit.label}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div>
+          <label>Defender units</label>
+          <select multiple value={form.defenderUnitIds} onChange={(e) => onSelectUnits('defenderUnitIds', e.target)}>
+            {unitOptions.map((unit) => (
+              <option key={unit.id} value={unit.id}>
+                {unit.label}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <input
+          type="number"
+          min={-3}
+          max={3}
+          step={1}
+          placeholder="Column shifts"
+          value={form.columnShifts}
+          onChange={(e) => setForm({ ...form, columnShifts: clampColumnShifts(Number(e.target.value)) })}
+        />
         <textarea placeholder="Notes" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
+        {error && <p style={{ color: 'crimson' }}>{error}</p>}
         <button
           onClick={async () => {
+            setError('');
             const res = await fetch('/api/actions', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
@@ -46,37 +103,21 @@ export default function NewActionPage() {
                 actionType: 'CLOSE_COMBAT',
                 actorSide: 'WHITE',
                 title: form.title ?? 'Close Combat',
-                inputsJson: form
+                inputsJson: { ...form, columnShifts: clampColumnShifts(Number(form.columnShifts ?? 0)) }
               })
             });
 
-            const text = await res.text();
-
             if (!res.ok) {
-              alert(text || `Create action failed (${res.status})`);
+              setError(await res.text());
               return;
             }
 
-            const action = text ? JSON.parse(text) : null;
-            if (!action?.id) {
-              alert('Create action failed: server returned no action id');
-              return;
-            }
-
-router.push(`/actions/${action.id}`);
+            const action = await res.json();
+            router.push(`/actions/${action.id}`);
           }}
         >
           Create Draft Action
         </button>
-      </div>
-
-      <div className="card">
-        <h3>Units Reference</h3>
-        <p>Copy unit IDs into attacker/defender fields.</p>
-        <table>
-          <thead><tr><th>ID</th><th>Name</th><th>Side</th><th>CPP</th></tr></thead>
-          <tbody>{units.map((u) => <tr key={u.id}><td>{u.id}</td><td>{u.name}</td><td>{u.side}</td><td>{u.unitState?.cppCurrent}</td></tr>)}</tbody>
-        </table>
       </div>
     </div>
   );

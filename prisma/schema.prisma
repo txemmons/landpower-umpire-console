@@ -72,13 +72,20 @@ model UnitState {
 }
 
 model Action {
-  id         String @id @default(cuid())
-  gameId     String
-  turnNumber Int
-  phase      String
-  actionType String
-  actorSide  String
-  title      String
+  id             String       @id @default(cuid())
+  gameId         String
+  turnNumber     Int
+  phase          String
+  actionType     String
+  actorSide      String
+  title          String
+  inputsJson     String
+  proposedJson   String?
+  finalJson      String?
+  status         String @default("DRAFT")
+  overrideReason String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
 
   // SQLite-compatible: store JSON as text
   inputsJson   String
