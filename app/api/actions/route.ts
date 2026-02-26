@@ -13,7 +13,7 @@ export async function POST(req: Request) {
       actionType: body.actionType,
       actorSide: body.actorSide,
       title: body.title,
-      inputsJson: body.inputsJson ?? {},
+      inputsJson: JSON.stringify(body.inputsJson ?? {}),
       status: 'DRAFT'
     }
   });

@@ -36,22 +36,34 @@ export default function NewActionPage() {
         <textarea placeholder="Notes" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
         <button
           onClick={async () => {
-            const action = await (
-              await fetch('/api/actions', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  gameId: game.id,
-                  turnNumber: game.currentTurnNumber,
-                  phase: game.currentPhase,
-                  actionType: 'CLOSE_COMBAT',
-                  actorSide: 'WHITE',
-                  title: form.title ?? 'Close Combat',
-                  inputsJson: form
-                })
+            const res = await fetch('/api/actions', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                gameId: game.id,
+                turnNumber: game.currentTurnNumber,
+                phase: game.currentPhase,
+                actionType: 'CLOSE_COMBAT',
+                actorSide: 'WHITE',
+                title: form.title ?? 'Close Combat',
+                inputsJson: form
               })
-            ).json();
-            router.push(`/actions/${action.id}`);
+            });
+
+            const text = await res.text();
+
+            if (!res.ok) {
+              alert(text || `Create action failed (${res.status})`);
+              return;
+            }
+
+            const action = text ? JSON.parse(text) : null;
+            if (!action?.id) {
+              alert('Create action failed: server returned no action id');
+              return;
+            }
+
+router.push(`/actions/${action.id}`);
           }}
         >
           Create Draft Action

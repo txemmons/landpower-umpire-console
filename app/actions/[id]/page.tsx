@@ -3,6 +3,13 @@
 import { useEffect, useState } from 'react';
 import { CopyButton } from '@/components/CopyButton';
 
+function parseJsonMaybe(value: any) {
+  if (value == null) return null;
+  if (typeof value === 'object') return value; // already parsed
+  if (typeof value !== 'string') return null;
+  try { return JSON.parse(value); } catch { return null; }
+}
+
 export default function ActionDetailPage({ params }: { params: { id: string } }) {
   const [action, setAction] = useState<any>(null);
   const [editOpen, setEditOpen] = useState(false);
@@ -11,8 +18,15 @@ export default function ActionDetailPage({ params }: { params: { id: string } })
 
   const load = async () => {
     const a = await (await fetch(`/api/actions/${params.id}`)).json();
-    setAction(a);
-    setFinalJson(a.finalJson ?? a.proposedJson ?? null);
+    
+    const inputs = parseJsonMaybe(a.inputsJson);
+    const proposed = parseJsonMaybe(a.proposedJson);
+    const final = parseJsonMaybe(a.finalJson);
+
+    const parsed = { ...a, inputsJson: inputs, proposedJson: proposed, finalJson: final };
+
+    setAction(parsed);
+    setFinalJson(parsed.finalJson ?? parsed.proposedJson ?? null);
   };
 
   useEffect(() => { load(); }, [params.id]);

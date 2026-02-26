@@ -13,7 +13,7 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
     return NextResponse.json({ error: 'Only CLOSE_COMBAT supported in MVP' }, { status: 400 });
   }
 
-  const inputs = action.inputsJson as unknown as CloseCombatInputs;
+  const inputs = JSON.parse(action.inputsJson) as CloseCombatInputs;
   const attackers = await db.unit.findMany({ where: { id: { in: inputs.attackerUnitIds ?? [] } }, include: { unitState: true } });
   const defenders = await db.unit.findMany({ where: { id: { in: inputs.defenderUnitIds ?? [] } }, include: { unitState: true } });
 
@@ -27,6 +27,10 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
     phase: action.phase
   });
 
-  const updated = await db.action.update({ where: { id: action.id }, data: { proposedJson: proposed, status: 'PROPOSED' } });
+  const updated = await db.action.update({
+    where: { id: action.id },
+    data: { proposedJson: JSON.stringify(proposed), status: 'PROPOSED' }
+  });
+
   return NextResponse.json(updated);
 }
