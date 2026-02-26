@@ -132,9 +132,9 @@ model Action {
   actionType     ActionType
   actorSide      Side
   title          String
-  inputsJson     Json
-  proposedJson   Json?
-  finalJson      Json?
+  inputsJson     String
+  proposedJson   String?
+  finalJson      String?
   status         ActionStatus @default(DRAFT)
   overrideReason String?
   createdAt      DateTime     @default(now())
