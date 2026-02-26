@@ -1,0 +1,174 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum Side {
+  BLUE
+  RED
+  WHITE
+}
+
+enum Phase {
+  INFO_COLLECTION
+  DEEP_NONLETHAL
+  DEEP_LETHAL_FIRES
+  DEEP_FIXED_WING
+  DEEP_ROTARY_WING
+  CLOSE_AREA
+  REAR_AREA
+  SUPPORT_SUSTAINMENT
+}
+
+enum ActionType {
+  CLOSE_COMBAT
+  EW
+  CYBER
+  DEEP_FIRES
+  ADA_DCA
+  LOGSTAT
+  MANUAL_NOTE
+}
+
+enum ActionStatus {
+  DRAFT
+  PROPOSED
+  APPROVED
+  MODIFIED
+  APPLIED
+}
+
+enum Echelon {
+  COMPANY
+  BATTERY
+  BATTALION
+  BRIGADE
+  DIVISION_HQ
+  OTHER
+}
+
+enum UnitType {
+  INF
+  ARMOR
+  ARTY
+  ADA
+  AVN
+  HQ
+  LOG
+  OTHER
+}
+
+model Game {
+  id                String   @id @default(cuid())
+  name              String
+  currentTurnNumber Int      @default(1)
+  currentPhase      Phase    @default(INFO_COLLECTION)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  turns    Turn[]
+  units    Unit[]
+  actions  Action[]
+  logEntry LogEntry[]
+}
+
+model Turn {
+  id         String    @id @default(cuid())
+  gameId     String
+  turnNumber Int
+  phase      Phase
+  startedAt  DateTime  @default(now())
+  endedAt    DateTime?
+
+  game Game @relation(fields: [gameId], references: [id], onDelete: Cascade)
+
+  @@index([gameId, turnNumber])
+}
+
+model Unit {
+  id           String    @id @default(cuid())
+  gameId       String
+  name         String
+  side         Side
+  echelon      Echelon
+  unitType     UnitType
+  parentUnitId String?
+  notes        String    @default("")
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  game      Game   @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  parent    Unit?  @relation("UnitParent", fields: [parentUnitId], references: [id])
+  children  Unit[] @relation("UnitParent")
+  unitState UnitState?
+}
+
+model UnitState {
+  id              String   @id @default(cuid())
+  unitId          String   @unique
+  gameId          String
+  cppCurrent      Int
+  cppMax          Int?
+  suppressedFire  Boolean  @default(false)
+  suppressedCyber Boolean  @default(false)
+  suppressedEW    Boolean  @default(false)
+  posture         String?
+  destroyed       Boolean  @default(false)
+  updatedAt       DateTime @updatedAt
+
+  unit Unit @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  game Game @relation(fields: [gameId], references: [id], onDelete: Cascade)
+}
+
+model Action {
+  id             String       @id @default(cuid())
+  gameId         String
+  turnNumber     Int
+  phase          Phase
+  actionType     ActionType
+  actorSide      Side
+  title          String
+  inputsJson     Json
+  proposedJson   Json?
+  finalJson      Json?
+  status         ActionStatus @default(DRAFT)
+  overrideReason String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  game     Game      @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  dieRolls DieRoll[]
+  logs     LogEntry[]
+
+  @@index([gameId, turnNumber])
+}
+
+model DieRoll {
+  id        String   @id @default(cuid())
+  actionId  String
+  dieType   String
+  result    Int
+  label     String?
+  createdAt DateTime @default(now())
+
+  action Action @relation(fields: [actionId], references: [id], onDelete: Cascade)
+}
+
+model LogEntry {
+  id         String   @id @default(cuid())
+  gameId     String
+  turnNumber Int
+  phase      Phase
+  actionId   String?
+  message    String
+  createdAt  DateTime @default(now())
+
+  game   Game    @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  action Action? @relation(fields: [actionId], references: [id], onDelete: SetNull)
+
+  @@index([gameId, createdAt])
+}
