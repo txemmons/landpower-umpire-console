@@ -15,13 +15,6 @@ type ActionPayload = {
 
 const toPrettyJson = (value: unknown) => JSON.stringify(value ?? {}, null, 2);
 
-function parseJsonMaybe(value: any) {
-  if (value == null) return null;
-  if (typeof value === 'object') return value; // already parsed
-  if (typeof value !== 'string') return null;
-  try { return JSON.parse(value); } catch { return null; }
-}
-
 export default function ActionDetailPage({ params }: { params: { id: string } }) {
   const [action, setAction] = useState<ActionPayload | null>(null);
   const [editOpen, setEditOpen] = useState(false);
