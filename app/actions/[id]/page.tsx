@@ -13,7 +13,28 @@ type ActionPayload = {
   finalJson: string | null;
 };
 
+type FinalDraft = {
+  chatLine: string;
+  effectsText: string;
+  parsed: Record<string, unknown>;
+};
+
 const toPrettyJson = (value: unknown) => JSON.stringify(value ?? {}, null, 2);
+
+const parseActionJson = (value: unknown) => {
+  const parsed = parseJsonMaybe(value);
+  if (typeof parsed === 'string') return parseJsonMaybe(parsed);
+  return parsed;
+};
+
+const asDraft = (value: unknown): FinalDraft => {
+  const parsed = (value && typeof value === 'object' ? value : {}) as Record<string, unknown>;
+  return {
+    parsed,
+    chatLine: typeof parsed.chatLine === 'string' ? parsed.chatLine : '',
+    effectsText: JSON.stringify(parsed.effects ?? [], null, 2)
+  };
+};
 
 export default function ActionDetailPage({ params }: { params: { id: string } }) {
   const [action, setAction] = useState<ActionPayload | null>(null);
@@ -21,7 +42,7 @@ export default function ActionDetailPage({ params }: { params: { id: string } })
   const [inputsObj, setInputsObj] = useState<any>(null);
   const [proposedObj, setProposedObj] = useState<any>(null);
   const [finalObj, setFinalObj] = useState<any>(null);
-  const [draftFinal, setDraftFinal] = useState<any>(null);
+  const [draftFinal, setDraftFinal] = useState<FinalDraft | null>(null);
   const [overrideReason, setOverrideReason] = useState('');
   const [error, setError] = useState('');
 
@@ -34,15 +55,15 @@ export default function ActionDetailPage({ params }: { params: { id: string } })
     }
 
     const a = (await res.json()) as ActionPayload;
-    const parsedInputs = parseJsonMaybe(a.inputsJson);
-    const parsedProposed = parseJsonMaybe(a.proposedJson);
-    const parsedFinal = parseJsonMaybe(a.finalJson);
+    const parsedInputs = parseActionJson(a.inputsJson);
+    const parsedProposed = parseActionJson(a.proposedJson);
+    const parsedFinal = parseActionJson(a.finalJson);
 
     setAction(a);
     setInputsObj(parsedInputs);
     setProposedObj(parsedProposed);
     setFinalObj(parsedFinal);
-    setDraftFinal(parsedFinal ?? parsedProposed ?? null);
+    setDraftFinal(asDraft(parsedFinal ?? parsedProposed ?? {}));
   };
 
   useEffect(() => {
@@ -64,6 +85,8 @@ export default function ActionDetailPage({ params }: { params: { id: string } })
 
     await load();
   };
+
+  const finalChatLine = (draftFinal?.parsed.chatLine as string | undefined) ?? (finalObj?.chatLine as string | undefined) ?? '';
 
   if (!action) return <div className="card">Loading...</div>;
 
@@ -92,12 +115,23 @@ export default function ActionDetailPage({ params }: { params: { id: string } })
       <div className="grid grid-2">
         <div className="card">
           <h3>Proposed</h3>
+          {proposedObj && (
+            <p>
+              Outcome summary: {proposedObj.oddsLabel ?? 'N/A'} | Die {proposedObj.dieRoll ?? 'N/A'} |{' '}
+              {proposedObj.outcomeSummary ?? 'N/A'}
+            </p>
+          )}
           <pre>{toPrettyJson(proposedObj)}</pre>
         </div>
         <div className="card">
           <h3>Final</h3>
+          {finalObj && (
+            <p>
+              Outcome summary: {finalObj.oddsLabel ?? 'N/A'} | Die {finalObj.dieRoll ?? 'N/A'} | {finalObj.outcomeSummary ?? 'N/A'}
+            </p>
+          )}
           <pre>{toPrettyJson(finalObj)}</pre>
-          {finalObj?.chatLine && <CopyButton text={finalObj.chatLine} />}
+          {finalChatLine && <CopyButton text={finalChatLine} />}
         </div>
       </div>
 
@@ -108,28 +142,49 @@ export default function ActionDetailPage({ params }: { params: { id: string } })
           <textarea
             style={{ width: '100%' }}
             rows={3}
-            value={draftFinal.chatLine ?? ''}
-            onChange={(e) => setDraftFinal({ ...draftFinal, chatLine: e.target.value })}
+            value={draftFinal.chatLine}
+            onChange={(e) =>
+              setDraftFinal((prev) =>
+                prev
+                  ? {
+                      ...prev,
+                      chatLine: e.target.value,
+                      parsed: { ...prev.parsed, chatLine: e.target.value }
+                    }
+                  : prev
+              )
+            }
           />
           <label>Effects JSON</label>
           <textarea
             style={{ width: '100%' }}
             rows={8}
-            value={JSON.stringify(draftFinal.effects ?? [], null, 2)}
-            onChange={(e) => {
-              try {
-                setDraftFinal({ ...draftFinal, effects: JSON.parse(e.target.value) });
-              } catch {
-                setError('Effects JSON must be valid JSON.');
-              }
-            }}
+            value={draftFinal.effectsText}
+            onChange={(e) =>
+              setDraftFinal((prev) =>
+                prev
+                  ? {
+                      ...prev,
+                      effectsText: e.target.value
+                    }
+                  : prev
+              )
+            }
           />
           <label>Override reason</label>
           <input value={overrideReason} onChange={(e) => setOverrideReason(e.target.value)} />
           <button
             onClick={async () => {
+              let parsedEffects: unknown;
+              try {
+                parsedEffects = JSON.parse(draftFinal.effectsText);
+              } catch {
+                setError('Effects JSON must be valid JSON.');
+                return;
+              }
+
               await callAction(`/api/actions/${params.id}/modify`, {
-                finalJson: draftFinal,
+                finalJson: { ...draftFinal.parsed, chatLine: draftFinal.chatLine, effects: parsedEffects },
                 overrideReason
               });
               setEditOpen(false);

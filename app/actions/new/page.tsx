@@ -79,15 +79,19 @@ export default function NewActionPage() {
           </select>
         </div>
 
-        <input
-          type="number"
-          min={-3}
-          max={3}
-          step={1}
-          placeholder="Column shifts"
-          value={form.columnShifts}
-          onChange={(e) => setForm({ ...form, columnShifts: clampColumnShifts(Number(e.target.value)) })}
-        />
+        <div>
+          <label htmlFor="column-shifts">Column shifts (–3 to +3)</label>
+          <input
+            id="column-shifts"
+            type="number"
+            min={-3}
+            max={3}
+            step={1}
+            value={form.columnShifts}
+            onChange={(e) => setForm({ ...form, columnShifts: clampColumnShifts(Number(e.target.value)) })}
+          />
+          <small>Positive favors attacker. Clamped to –3…+3.</small>
+        </div>
         <textarea placeholder="Notes" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
         {error && <p style={{ color: 'crimson' }}>{error}</p>}
         <button
