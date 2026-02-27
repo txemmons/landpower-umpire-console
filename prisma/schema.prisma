@@ -7,80 +7,27 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-enum Side {
-  BLUE
-  RED
-  WHITE
-}
-
-enum Phase {
-  INFO_COLLECTION
-  DEEP_NONLETHAL
-  DEEP_LETHAL_FIRES
-  DEEP_FIXED_WING
-  DEEP_ROTARY_WING
-  CLOSE_AREA
-  REAR_AREA
-  SUPPORT_SUSTAINMENT
-}
-
-enum ActionType {
-  CLOSE_COMBAT
-  EW
-  CYBER
-  DEEP_FIRES
-  ADA_DCA
-  LOGSTAT
-  MANUAL_NOTE
-}
-
-enum ActionStatus {
-  DRAFT
-  PROPOSED
-  APPROVED
-  MODIFIED
-  APPLIED
-}
-
-enum Echelon {
-  COMPANY
-  BATTERY
-  BATTALION
-  BRIGADE
-  DIVISION_HQ
-  OTHER
-}
-
-enum UnitType {
-  INF
-  ARMOR
-  ARTY
-  ADA
-  AVN
-  HQ
-  LOG
-  OTHER
-}
-
 model Game {
   id                String   @id @default(cuid())
   name              String
   currentTurnNumber Int      @default(1)
-  currentPhase      Phase    @default(INFO_COLLECTION)
+  // store as string instead of enum
+  currentPhase      String   @default("INFO_COLLECTION")
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
-  turns    Turn[]
-  units    Unit[]
-  actions  Action[]
-  logEntry LogEntry[]
+  turns      Turn[]
+  units      Unit[]
+  unitStates UnitState[] // ✅ back-relation fix
+  actions    Action[]
+  logEntry   LogEntry[]
 }
 
 model Turn {
   id         String    @id @default(cuid())
   gameId     String
   turnNumber Int
-  phase      Phase
+  phase      String
   startedAt  DateTime  @default(now())
   endedAt    DateTime?
 
@@ -90,20 +37,20 @@ model Turn {
 }
 
 model Unit {
-  id           String    @id @default(cuid())
+  id           String   @id @default(cuid())
   gameId       String
   name         String
-  side         Side
-  echelon      Echelon
-  unitType     UnitType
+  side         String
+  echelon      String
+  unitType     String
   parentUnitId String?
-  notes        String    @default("")
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  notes        String   @default("")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
-  game      Game   @relation(fields: [gameId], references: [id], onDelete: Cascade)
-  parent    Unit?  @relation("UnitParent", fields: [parentUnitId], references: [id])
-  children  Unit[] @relation("UnitParent")
+  game      Game       @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  parent    Unit?      @relation("UnitParent", fields: [parentUnitId], references: [id])
+  children  Unit[]     @relation("UnitParent")
   unitState UnitState?
 }
 
@@ -128,19 +75,29 @@ model Action {
   id             String       @id @default(cuid())
   gameId         String
   turnNumber     Int
-  phase          Phase
-  actionType     ActionType
-  actorSide      Side
+  phase          String
+  actionType     String
+  actorSide      String
   title          String
-  inputsJson     Json
-  proposedJson   Json?
-  finalJson      Json?
-  status         ActionStatus @default(DRAFT)
+  inputsJson     String
+  proposedJson   String?
+  finalJson      String?
+  status         String @default("DRAFT")
   overrideReason String?
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 
-  game     Game      @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  // SQLite-compatible: store JSON as text
+  inputsJson   String
+  proposedJson String?
+  finalJson    String?
+
+  status         String   @default("DRAFT")
+  overrideReason String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  game     Game       @relation(fields: [gameId], references: [id], onDelete: Cascade)
   dieRolls DieRoll[]
   logs     LogEntry[]
 
@@ -162,7 +119,7 @@ model LogEntry {
   id         String   @id @default(cuid())
   gameId     String
   turnNumber Int
-  phase      Phase
+  phase      String
   actionId   String?
   message    String
   createdAt  DateTime @default(now())
